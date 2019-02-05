@@ -1,5 +1,6 @@
-#Based on solver.py from DL4CV class
+from random import shuffle
 import numpy as np
+
 import torch
 from torch.autograd import Variable
 
@@ -29,7 +30,7 @@ class Solver(object):
         self.val_acc_history = []
         self.val_loss_history = []
 
-    def train(self, model, train_loader, val_loader, num_epochs=10, log_nth=0):
+    def train(self, model, train_loader, val_loader, num_epochs=10, log_nth=0, reset_hist = True):
         """
         Train a given model with the provided data.
         Inputs:
@@ -43,36 +44,16 @@ class Solver(object):
         optim = self.optim(filter(lambda p: p.requires_grad, model.parameters()), **self.optim_args)
         self._reset_histories()
         iter_per_epoch = len(train_loader)
+        
+        if reset_hist:
+            self._reset_histories()
 
-        if torch.cuda.is_available():
-             model.cuda()
-
+        if torch.cuda.is_available():\
+            model.cuda()
 
         print('START TRAIN.')
-        ########################################################################
-        # TODO:                                                                #
-        # Write your own personal training method for our solver. In each      #
-        # epoch iter_per_epoch shuffled training batches are processed. The    #
-        # loss for each batch is stored in self.train_loss_history. Every      #
-        # log_nth iteration the loss is logged. After one epoch the training   #
-        # accuracy of the last mini batch is logged and stored in              #
-        # self.train_acc_history. We validate at the end of each epoch, log    #
-        # the result and store the accuracy of the entire validation set in    #
-        # self.val_acc_history.                                                #
-        #                                                                      #
-        # Your logging could like something like:                              #
-        #   ...                                                                #
-        #   [Iteration 700/4800] TRAIN loss: 1.452                             #
-        #   [Iteration 800/4800] TRAIN loss: 1.409                             #
-        #   [Iteration 900/4800] TRAIN loss: 1.374                             #
-        #   [Epoch 1/5] TRAIN acc/loss: 0.560/1.374                            #
-        #   [Epoch 1/5] VAL   acc/loss: 0.539/1.310                            #
-        #   ...                                                                #
-        ########################################################################
-
         for epoch in range(num_epochs):
-            # TRAINING
-
+            count =0
             for i, (inputs, targets) in enumerate(train_loader, 1):
                 inputs, targets = Variable(inputs), Variable(targets)
                 if model.is_cuda:
@@ -80,10 +61,11 @@ class Solver(object):
 
                 optim.zero_grad()
                 outputs = model(inputs)
+
                 if model.is_cuda:
-                    loss = self.loss_func(outputs, targets.type(torch.cuda.FloatTensor))
+                    loss = self.loss_func(outputs, targets.type(torch.cuda.LongTensor))
                 else:
-                    loss = self.loss_func(outputs, targets.type(torch.FloatTensor))
+                    loss = self.loss_func(outputs, targets.type(torch.LongTensor))
 
                 loss.backward()
                 optim.step()
@@ -92,45 +74,42 @@ class Solver(object):
                 if log_nth and i % log_nth == 0:
                     last_log_nth_losses = self.train_loss_history[-log_nth:]
                     train_loss = np.mean(last_log_nth_losses)
-                    print('[Iteration %d/%d] TRAIN loss: %.3f' % \
+                    print('[Iteration %d/%d] TRAIN loss: %.20f' % \
                         (i + epoch * iter_per_epoch,
                          iter_per_epoch * num_epochs,
-                         train_loss * 1000))
-            #print(outputs.size())
-            #_, preds = torch.max(outputs, 1)
-            preds = outputs
-            #print(preds)
-            # Only allow images/pixels with label >= 0 e.g. for segmentation
+                         train_loss))
+            _, preds = torch.max(outputs, 1)
 
-            if model.is_cuda:
-                #print(preds.size())
-                #print(targets.size())
-                train_acc = np.mean((preds.type(torch.cuda.FloatTensor) == targets.type(torch.cuda.FloatTensor)).data.cpu().numpy())
-            else:
-                train_acc = np.mean((preds.type(torch.cuda.FloatTensor) == targets.type(torch.FloatTensor)).data.cpu().numpy())
+            # Only allow images/pixels with label >= 0 e.g. for segmentation
+            targets_mask = targets >= 0
+            train_acc = np.mean((preds == targets.type(torch.cuda.LongTensor))[targets_mask].data.cpu().numpy())
             self.train_acc_history.append(train_acc)
             if log_nth:
                 print('[Epoch %d/%d] TRAIN acc/loss: %.3f/%.3f' % (epoch + 1,
                                                                    num_epochs,
                                                                    train_acc,
-                                                                   train_loss * 1000))
-            #VALIDATION
+                                                                   train_loss))
+
             val_losses = []
             val_scores = []
             model.eval()
+            count = 0
             for inputs, targets in val_loader:
                 inputs, targets = Variable(inputs), Variable(targets)
                 if model.is_cuda:
                     inputs, targets = inputs.cuda(), targets.cuda()
 
                 outputs = model.forward(inputs)
-                loss = self.loss_func(outputs, targets.type(torch.cuda.FloatTensor))
+
+                loss = self.loss_func(outputs, targets.type(torch.cuda.LongTensor))
+
                 val_losses.append(loss.data.cpu().numpy())
 
-                #_, preds = torch.max(outputs, 1)
-                preds = outputs
+                _, preds = torch.max(outputs, 1)
 
-                scores = np.mean((preds.type(torch.cuda.FloatTensor) == targets.type(torch.cuda.FloatTensor)).data.cpu().numpy())
+                # Only allow images/pixels with target >= 0 e.g. for segmentation
+                targets_mask = targets >= 0
+                scores = np.mean((preds == targets.type(torch.cuda.LongTensor))[targets_mask].data.cpu().numpy())
                 val_scores.append(scores)
 
             model.train()
@@ -141,9 +120,6 @@ class Solver(object):
                 print('[Epoch %d/%d] VAL   acc/loss: %.3f/%.3f' % (epoch + 1,
                                                                    num_epochs,
                                                                    val_acc,
-                                                                   val_loss * 1000))
-
-        ########################################################################
-        #                             END OF YOUR CODE                         #
-        ########################################################################
-print('FINISH.')
+                                                                   val_loss))
+            
+        print('FINISH.')

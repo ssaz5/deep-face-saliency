@@ -46,20 +46,13 @@ class FacePlacedData(data.Dataset):
     def get_item_from_index(self, index):
         to_tensor = transforms.ToTensor()
         img_path = self.image_paths[index]
-
-        grayscale = transforms.Grayscale()
-        norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.5, 0.5, 0.5])
         topil = transforms.ToPILImage()
         res = transforms.Resize([240, 320])
-        
+
         img = Image.open(os.path.join(self.root_dir_name, 'face_placed/' + \
                                       img_path))
-        img = res(img)        
-        #img = grayscale(img)
+        img = res(img)
         img = to_tensor(img)
-#         img = norm(img)
-        #img = img.squeeze()
-
         target = np.load(os.path.join(self.root_dir_name, 'face_placed/'+ \
                                         img_path[:-4] + '_gnd.npy'))
         target = np.uint8(target//255)
@@ -71,7 +64,6 @@ class FacePlacedData(data.Dataset):
         target = to_tensor(target)
         target /= torch.max(target)
         target = target.squeeze()
-        #print(torch.max(target), torch.min(target))
         return img, target
 
 class ClusterRandomSampler(Sampler):
@@ -87,7 +79,7 @@ class ClusterRandomSampler(Sampler):
         self.data_source = data_source
         self.batch_size = batch_size
         self.shuffle = shuffle
-        
+
     def flatten_list(self, lst):
         return [item for sublist in lst for item in sublist]
 
@@ -100,15 +92,15 @@ class ClusterRandomSampler(Sampler):
             batches = [_ for _ in batches if len(_) == self.batch_size]
             if self.shuffle:
                 random.shuffle(batches)
-            batch_lists.append(batches)       
-        
+            batch_lists.append(batches)
+
         # flatten lists and shuffle the batches if necessary
         # this works on batch level
         lst = self.flatten_list(batch_lists)
         if self.shuffle:
             random.shuffle(lst)
         # final flatten  - produce flat list of indexes
-        lst = self.flatten_list(lst)        
+        lst = self.flatten_list(lst)
         return iter(lst)
 
     def __len__(self):
@@ -116,7 +108,7 @@ class ClusterRandomSampler(Sampler):
 
         return img, target
 
-    
+
 class FaceVAE(data.Dataset):
 
     def __init__(self, image_paths_file):
@@ -150,38 +142,21 @@ class FaceVAE(data.Dataset):
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.5, 0.5, 0.5])
         topil = transforms.ToPILImage()
         res = transforms.Resize([128, 128])
-        
+
         img = Image.open(os.path.join(self.root_dir_name, \
                                       img_path)).convert('RGB')
-        img = res(img)        
-        #img = grayscale(img)
+        img = res(img)
         mask = gkern(img.size[1], img.size[0], 2, 2.5)
         mask = mask/np.max(mask)
-        th = (np.mean(mask) - 1*np.std(mask)) 
+        th = (np.mean(mask) - 1*np.std(mask))
         mask[mask<th] = 0
         mask[mask>=th] = 1
-#         print(mask.shape)
         mask = np.tile(mask,[3,1,1])
-        
-
-#         print("Image size:" , mask.shape)
-        
-        
         img = to_tensor(img).float()
         mask = torch.from_numpy(mask).float()
-#         print("Image size:" , img.size())
-#         img = norm(img)
-      
-        #img = img.squeeze()
-        
-#         print(img, mask)
-        
-        
         img = torch.mul(img,mask)
         target = img
-#         target = to_tensor(mask_img)
-#         target.unsqueeze(0)
-#         print("MASK SIZE: ", target.size())
+
         return img, target
 
 def gkern(kernlen_x=21,kernlen_y=21, nsig_x=3, nsig_y=4):
@@ -195,7 +170,7 @@ def gkern(kernlen_x=21,kernlen_y=21, nsig_x=3, nsig_y=4):
     kern2d = np.diff(st.norm.cdf(y))
     kernel_raw = np.sqrt(np.outer(kern1d, kern2d))
     kernel = kernel_raw/kernel_raw.sum()
-    return kernel    
+    return kernel
 
 
 def gau_kl(pm, pv, qm, qv):
@@ -220,7 +195,7 @@ def gau_kl(pm, pv, qm, qv):
             (np.log(dqv / dpv)            # log |\Sigma_q| / |\Sigma_p|
              + (iqv * pv).sum(axis)          # + tr(\Sigma_q^{-1} * \Sigma_p)
              + (diff * iqv * diff).sum(axis) # + (\mu_q-\mu_p)^T\Sigma_q^{-1}(\mu_q-\mu_p)
-             - len(pm)))   
+             - len(pm)))
 
 
 def get_indices_from_name(sub_name, indices, indices_subjects, num_images= 5):
