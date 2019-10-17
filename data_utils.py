@@ -111,9 +111,9 @@ class ClusterRandomSampler(Sampler):
 
 class FaceVAE(data.Dataset):
 
-    def __init__(self, image_paths_file):
-        self.root_dir_name = os.path.dirname(image_paths_file)
-
+    def __init__(self, image_paths_file, folder_name =''):
+        self.root_dir_name = os.path.dirname(image_paths_file)+folder_name
+        
         with open(image_paths_file) as f:
             self.image_paths = f.read().splitlines()
 
@@ -146,15 +146,15 @@ class FaceVAE(data.Dataset):
         img = Image.open(os.path.join(self.root_dir_name, \
                                       img_path)).convert('RGB')
         img = res(img)
-        mask = gkern(img.size[1], img.size[0], 2, 2.5)
-        mask = mask/np.max(mask)
-        th = (np.mean(mask) - 1*np.std(mask))
-        mask[mask<th] = 0
-        mask[mask>=th] = 1
-        mask = np.tile(mask,[3,1,1])
+#         mask = gkern(img.size[1], img.size[0], 2, 2.5)
+#         mask = mask/np.max(mask)
+#         th = (np.mean(mask) - 1*np.std(mask))
+#         mask[mask<th] = 0
+#         mask[mask>=th] = 1
+#         mask = np.tile(mask,[3,1,1])
         img = to_tensor(img).float()
-        mask = torch.from_numpy(mask).float()
-        img = torch.mul(img,mask)
+#         mask = torch.from_numpy(mask).float()
+#         img = torch.mul(img,mask)
         target = img
 
         return img, target

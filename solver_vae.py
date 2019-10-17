@@ -17,7 +17,7 @@ class Solver(object):
         self.optim_args = optim_args_merged
         self.optim = optim
         self.loss_func = loss_func
-
+        self.is_cuda = torch.cuda.is_available()
         self._reset_histories()
 
     def _reset_histories(self):
@@ -48,7 +48,7 @@ class Solver(object):
         
         iter_per_epoch = len(train_loader)
 
-        if torch.cuda.is_available():
+        if self.is_cuda:
              model.cuda()
 
 
@@ -79,12 +79,12 @@ class Solver(object):
             count = 0
             for i, (inputs, targets) in enumerate(train_loader, 1):
                 inputs, targets = Variable(inputs), Variable(targets)
-                if model.is_cuda:
+                if self.is_cuda:
                     inputs, targets = inputs.cuda(), targets.cuda()
 
                 optim.zero_grad()
                 outputs, mu, logvar = model(inputs)
-                if model.is_cuda:
+                if self.is_cuda:
                     loss = self.loss_func(outputs, targets.type(torch.cuda.FloatTensor), mu, logvar)
                 else:
                     loss = self.loss_func(outputs, targets.type(torch.FloatTensor), mu, logvar)
@@ -110,7 +110,7 @@ class Solver(object):
                     
                     for inputs, targets in val_loader:
                         inputs, targets = Variable(inputs), Variable(targets)
-                        if model.is_cuda:
+                        if self.is_cuda:
                             inputs, targets = inputs.cuda(), targets.cuda()
 
                         outputs, mu, logvar = model.forward(inputs)
